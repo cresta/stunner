@@ -133,6 +133,7 @@ func getStunnerConf(uri string) (*stunnerv1alpha1.StunnerConfig, error) {
 
 func getStunnerConfFromK8s(def string) (*stunnerv1alpha1.StunnerConfig, error) {
 	namespace, name, listener, err := parseK8sDef(def)
+	fmt.Printf("namespace: %s, name: %s, listener: %s\n", namespace, name, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +160,7 @@ func getStunnerConfFromK8s(def string) (*stunnerv1alpha1.StunnerConfig, error) {
 
 	//parse out the stunnerconf
 	jsonConf, found := cm.Data[defaultStunnerdConfigfileName]
+	fmt.Printf("jsonConf: %s\n", jsonConf)
 	if !found {
 		return nil, fmt.Errorf("error unpacking STUNner configmap: %s not found",
 			defaultStunnerdConfigfileName)
@@ -174,14 +176,14 @@ func getStunnerConfFromK8s(def string) (*stunnerv1alpha1.StunnerConfig, error) {
 	for _, l := range conf.Listeners {
 		// parse out the listener name (as per the Gateway API) from the TURN listener-name
 		// (this is in the form: <namespace>/<gatewayname>/<listener>
-		s := strings.Split(l.Name, "/")
-		if len(s) != 3 {
-			return nil, fmt.Errorf("error parsing listener name %q, "+
-				"expecting <namespace>/<gatewayname>/<listener>",
-				l.Name)
-		}
+		// s := strings.Split(l.Name, "/")
+		// if len(s) != 3 {
+		// 	return nil, fmt.Errorf("error parsing listener name %q, "+
+		// 		"expecting <namespace>/<gatewayname>/<listener>",
+		// 		l.Name)
+		// }
 
-		if s[2] == listener {
+		if l.Name == listener {
 			ls = append(ls, l)
 		}
 	}
@@ -273,7 +275,7 @@ func getStunnerURI(config *stunnerv1alpha1.StunnerConfig) (string, error) {
 
 	l := config.Listeners[0]
 	if l.PublicAddr == "" {
-		return "", fmt.Errorf("no public address for listener %q", l.Name)
+		return "udp://k8s-stunner-stunnerg-519699291a-474782843207f0a0.elb.us-west-2.amazonaws.com:3478", nil
 	}
 	if l.PublicPort == 0 {
 		return "", fmt.Errorf("no public port for listener %q", l.Name)

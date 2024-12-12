@@ -122,15 +122,44 @@ func (s *Stunner) NewStatusHandler() object.StatusHandler {
 	return func() stnrv1.Status { return s.Status() }
 }
 
-var lifecycleEventHandlerConstructor = newLifecycleEventHandlerStub
+// Quota handler
+type QuotaHandler interface {
+	QuotaHandler() turn.QuotaHandler
+}
 
-// NewLifecycleEventHandler creates a set of callbcks for tracking the lifecycle of TURN allocations.
-func (s *Stunner) NewLifecycleEventHandler() turn.EventHandlers {
-	return lifecycleEventHandlerConstructor(s)
+var quotaHandlerConstructor = newQuotaHandlerStub
+
+// NewUserQuotaHandler creates a quota handler that defaults to a stub.
+func (s *Stunner) NewQuotaHandler() QuotaHandler {
+	return quotaHandlerConstructor(s)
+}
+
+type quotaHandlerStub struct {
+	quotaHandler turn.QuotaHandler
+}
+
+func (q *quotaHandlerStub) QuotaHandler() turn.QuotaHandler {
+	return q.quotaHandler
+}
+
+func newQuotaHandlerStub(_ *Stunner) QuotaHandler {
+	return &quotaHandlerStub{
+		quotaHandler: func(_, _ string, _ net.Addr) (ok bool) {
+			return true
+		},
+	}
+}
+
+// Event handlers
+var eventHandlerConstructor = newEventHandlerStub
+
+// NewEventHandler creates a set of callbcks for tracking the lifecycle of TURN allocations.
+func (s *Stunner) NewEventHandler() turn.EventHandlers {
+	return eventHandlerConstructor(s)
 }
 
 // LifecycleEventHandlerStub is a simple stub that logs allocation events.
-func newLifecycleEventHandlerStub(s *Stunner) turn.EventHandlers {
+func newEventHandlerStub(s *Stunner) turn.EventHandlers {
 	return turn.EventHandlers{
 		OnAuth: func(src, dst net.Addr, proto, username, realm string, method string, verdict bool) {
 			status := "REJECTED"

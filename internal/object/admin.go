@@ -26,7 +26,8 @@ type Admin struct {
 	MetricsEndpoint, HealthCheckEndpoint string
 	metricsServer, healthCheckServer     *http.Server
 	health                               *http.ServeMux
-	licenseManager                       licensecfg.ConfigManager
+	quota                                int
+	LicenseManager                       licensecfg.ConfigManager
 	licenseConfig                        *stnrv1.LicenseConfig
 	log                                  logging.LeveledLogger
 }
@@ -41,7 +42,7 @@ func NewAdmin(conf stnrv1.Config, dryRun bool, rc ReadinessHandler, status Statu
 	admin := Admin{
 		DryRun:         dryRun,
 		health:         http.NewServeMux(),
-		licenseManager: licensecfg.New(logger.NewLogger("license")),
+		LicenseManager: licensecfg.New(logger.NewLogger("license")),
 		log:            logger.NewLogger("admin"),
 	}
 	admin.log.Tracef("NewAdmin: %s", req.String())
@@ -124,7 +125,9 @@ func (a *Admin) Reconcile(conf stnrv1.Config) error {
 		return err
 	}
 
-	a.licenseManager.Reconcile(req.LicenseConfig)
+	a.quota = req.UserQuota
+
+	a.LicenseManager.Reconcile(req.LicenseConfig)
 	a.licenseConfig = req.LicenseConfig
 
 	return nil
@@ -153,6 +156,7 @@ func (a *Admin) GetConfig() stnrv1.Config {
 		LogLevel:            a.LogLevel,
 		MetricsEndpoint:     a.MetricsEndpoint,
 		HealthCheckEndpoint: &h,
+		UserQuota:           a.quota,
 		LicenseConfig:       a.licenseConfig,
 	}
 }
@@ -187,7 +191,8 @@ func (a *Admin) Status() stnrv1.Status {
 		LogLevel:            a.LogLevel,
 		MetricsEndpoint:     a.MetricsEndpoint,
 		HealthCheckEndpoint: a.HealthCheckEndpoint,
-		LicensingInfo:       a.licenseManager.Status(),
+		UserQuota:           fmt.Sprintf("%d", a.quota),
+		LicensingInfo:       a.LicenseManager.Status(),
 	}
 	return &s
 }

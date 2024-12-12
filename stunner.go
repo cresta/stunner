@@ -9,12 +9,14 @@ import (
 	"github.com/pion/logging"
 	"github.com/pion/transport/v3"
 	"github.com/pion/transport/v3/stdnet"
+	"github.com/pion/turn/v4"
 
 	"github.com/l7mp/stunner/internal/manager"
 	"github.com/l7mp/stunner/internal/object"
 	"github.com/l7mp/stunner/internal/resolver"
 	"github.com/l7mp/stunner/internal/telemetry"
 	stnrv1 "github.com/l7mp/stunner/pkg/apis/v1"
+	licensecfg "github.com/l7mp/stunner/pkg/config/license"
 	"github.com/l7mp/stunner/pkg/logger"
 )
 
@@ -32,6 +34,8 @@ type Stunner struct {
 	telemetry                                                  *telemetry.Telemetry
 	logger                                                     logger.LoggerFactory
 	log                                                        logging.LeveledLogger
+	eventHandlers                                              turn.EventHandlers
+	quotaHandler                                               QuotaHandler
 	net                                                        transport.Net
 	ready, shutdown                                            bool
 }
@@ -101,6 +105,8 @@ func NewStunner(options Options) *Stunner {
 		object.NewListenerFactory(vnet, s.NewRealmHandler(), logger), logger)
 	s.clusterManager = manager.NewManager("cluster-manager",
 		object.NewClusterFactory(r, logger), logger)
+	s.eventHandlers = s.NewEventHandler()
+	s.quotaHandler = s.NewQuotaHandler()
 
 	telemetryCallbacks := telemetry.Callbacks{
 		GetAllocationCount: func() int64 { return s.GetActiveConnections() },
@@ -143,7 +149,7 @@ func (s *Stunner) Shutdown() {
 	s.ready = false
 }
 
-// GetAdmin returns the admin object underlying STUNner.
+// GetAdmin returns the admin object. Panics if no admin object is available.
 func (s *Stunner) GetAdmin() *object.Admin {
 	a, found := s.adminManager.Get(stnrv1.DefaultAdminName)
 	if !found {
@@ -152,7 +158,13 @@ func (s *Stunner) GetAdmin() *object.Admin {
 	return a.(*object.Admin)
 }
 
-// GetAuth returns the authenitation object underlying STUNner.
+// GetLicenseConfigManager returns the manager handling license status. Panics if no manager is
+// available.
+func (s *Stunner) GetLicenseConfigManager() licensecfg.ConfigManager {
+	return s.GetAdmin().LicenseManager
+}
+
+// GetAuth returns the authenitation object. Panics if no auth object is available.
 func (s *Stunner) GetAuth() *object.Auth {
 	a, found := s.authManager.Get(stnrv1.DefaultAuthName)
 	if !found {
